@@ -1,0 +1,601 @@
+import React, { useMemo, useRef, useState } from "react";
+import {
+  AudioLines,
+  ArrowRight,
+  BadgeCheck,
+  Compass,
+  Gauge,
+  Layers,
+  SlidersHorizontal,
+  Sparkles,
+  Waves,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+
+/**
+ * Landing page for: MUsic from future
+ *
+ * Dark theme + colorful accents.
+ * Sections per mixing stage, each with swipe/drag cards.
+ */
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function useDragScroll<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startScrollLeft = useRef(0);
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const el = ref.current;
+    if (!el) return;
+
+    dragging.current = true;
+    startX.current = e.clientX;
+    startScrollLeft.current = el.scrollLeft;
+    el.setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const el = ref.current;
+    if (!el || !dragging.current) return;
+
+    const dx = e.clientX - startX.current;
+    el.scrollLeft = startScrollLeft.current - dx;
+    if (e.pointerType === "mouse") e.preventDefault();
+  }
+
+  function endDrag() {
+    dragging.current = false;
+  }
+
+  return {
+    ref,
+    handlers: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
+      onPointerLeave: endDrag,
+    } as const,
+  };
+}
+
+type Tone = "fuchsia" | "cyan" | "indigo";
+
+type StageCard = {
+  title: string;
+  desc: string;
+  hint: string;
+  tone: Tone;
+  icon: React.ReactNode;
+};
+
+type StageSection = {
+  id: string;
+  title: string;
+  subtitle: string;
+  cards: StageCard[];
+};
+
+export default function LandingPage() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const year = useMemo(() => new Date().getFullYear(), []);
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    // TODO: Wire to your backend (POST /waitlist)
+    setSubmitted(true);
+  }
+
+  const sections: StageSection[] = [
+    {
+      id: "gain-staging",
+      title: "Gain Staging",
+      subtitle: "From black-box automation to fully explainable, multi-model pipelines.",
+      cards: [
+        {
+          title: "Blackbox Gain Stage",
+          desc: "Auto gain-stage your mix — without revealing the steps.",
+          hint: "Fast, minimal UI — just results",
+          tone: "fuchsia",
+          icon: <Gauge className="h-5 w-5" />,
+        },
+        {
+          title: "Role-based Gain Stager",
+          desc: "Explainable gain staging with role-aware decisions.",
+          hint: "Shows what changed + why",
+          tone: "cyan",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "AI Gain Stager — 1 Model",
+          desc: "A single model that predicts clean levels per track.",
+          hint: "Simple + consistent baseline",
+          tone: "indigo",
+          icon: <Sparkles className="h-5 w-5" />,
+        },
+        {
+          title: "AI Gain Stager — 2 Models",
+          desc: "Two-model pipeline for smarter context + refinement.",
+          hint: "Better translation across genres",
+          tone: "cyan",
+          icon: <Layers className="h-5 w-5" />,
+        },
+        {
+          title: "AI Gain Stager — 3 Models",
+          desc: "Multi-stage pipeline: analyze → decide → refine.",
+          hint: "Most control + best quality",
+          tone: "fuchsia",
+          icon: <Compass className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      id: "panning",
+      title: "Stereo Panning",
+      subtitle: "Classic panning, explainability, and spatial pipelines with ambisonics.",
+      cards: [
+        {
+          title: "Blackbox Panning",
+          desc: "Auto-place elements in the stereo field — no explanation.",
+          hint: "Instant width + separation",
+          tone: "cyan",
+          icon: <SlidersHorizontal className="h-5 w-5" />,
+        },
+        {
+          title: "Explainable Panning",
+          desc: "Shows the panning rules and decisions for each element.",
+          hint: "Learn placement strategies",
+          tone: "indigo",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "Panning with Ambisonics",
+          desc: "Spatial positioning using ambisonic representations.",
+          hint: "Better depth + motion",
+          tone: "fuchsia",
+          icon: <Waves className="h-5 w-5" />,
+        },
+        {
+          title: "Ambisonics + Diffusion",
+          desc: "Diffuse spatial energy for a smoother, wider soundstage.",
+          hint: "More natural space",
+          tone: "cyan",
+          icon: <Sparkles className="h-5 w-5" />,
+        },
+        {
+          title: "Ambisonics + Diffusion + Binaural",
+          desc: "Full spatial pipeline ending with binaural decoding.",
+          hint: "Headphone-ready 3D",
+          tone: "indigo",
+          icon: <Compass className="h-5 w-5" />,
+        },
+      ],
+    },
+
+    // Templates for the remaining stages (replace card titles/desc with your exact product variants)
+    {
+      id: "equalization",
+      title: "Equalization",
+      subtitle: "Shape tone with clear goals — from black-box to explainable pipelines.",
+      cards: [
+        {
+          title: "Blackbox EQ",
+          desc: "Automatic EQ that just sounds better.",
+          hint: "No knobs, no explanations",
+          tone: "indigo",
+          icon: <AudioLines className="h-5 w-5" />,
+        },
+        {
+          title: "Explainable EQ",
+          desc: "Shows cuts/boosts and explains what they target.",
+          hint: "Resonances • mud • harshness",
+          tone: "cyan",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "AI EQ Pipelines",
+          desc: "Model-driven EQ suggestions with progressive refinement.",
+          hint: "1 model → 2 models → 3 models",
+          tone: "fuchsia",
+          icon: <Layers className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      id: "compression",
+      title: "Compression",
+      subtitle: "Tight dynamics, more punch — with teachable controls.",
+      cards: [
+        {
+          title: "Blackbox Compression",
+          desc: "Automatic dynamics control without parameter exposure.",
+          hint: "Quick, musical results",
+          tone: "cyan",
+          icon: <Waves className="h-5 w-5" />,
+        },
+        {
+          title: "Explainable Compression",
+          desc: "Explains ratio/threshold/attack/release decisions.",
+          hint: "Shows gain reduction + intent",
+          tone: "indigo",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "AI Compression Pipelines",
+          desc: "Multi-model dynamics that adapts to content and genre.",
+          hint: "Transient-aware refinement",
+          tone: "fuchsia",
+          icon: <Layers className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      id: "reverb",
+      title: "Reverb",
+      subtitle: "Depth, space, and realism — from presets to spatial pipelines.",
+      cards: [
+        {
+          title: "Blackbox Reverb",
+          desc: "Automatic space with a single toggle.",
+          hint: "Clean depth, low clutter",
+          tone: "fuchsia",
+          icon: <Sparkles className="h-5 w-5" />,
+        },
+        {
+          title: "Explainable Reverb",
+          desc: "Shows room choice, pre-delay, decay, and mix level.",
+          hint: "Teaches placement in space",
+          tone: "cyan",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "AI Reverb Pipelines",
+          desc: "Model-guided reverb selection and refinement.",
+          hint: "Context-aware ambience",
+          tone: "indigo",
+          icon: <Layers className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      id: "synchronization",
+      title: "Synchronization",
+      subtitle: "Tight timing alignment for cleaner mixes and better groove.",
+      cards: [
+        {
+          title: "Blackbox Sync",
+          desc: "Align timing automatically with minimal controls.",
+          hint: "Instant tightness",
+          tone: "indigo",
+          icon: <Compass className="h-5 w-5" />,
+        },
+        {
+          title: "Explainable Sync",
+          desc: "Shows what shifted and how alignment was decided.",
+          hint: "Transient + beat maps",
+          tone: "cyan",
+          icon: <BadgeCheck className="h-5 w-5" />,
+        },
+        {
+          title: "AI Sync Pipelines",
+          desc: "Multi-stage alignment that preserves feel.",
+          hint: "Human-like groove retention",
+          tone: "fuchsia",
+          icon: <Layers className="h-5 w-5" />,
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="dark min-h-screen bg-background text-foreground">
+      <Header />
+
+      {/* Background (dark + colorful accents) */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-[#07080c]" />
+
+        <div className="absolute -top-44 left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <div className="absolute -bottom-52 right-[-18%] h-[560px] w-[560px] rounded-full bg-cyan-400/18 blur-3xl" />
+        <div className="absolute top-24 left-[-18%] h-[520px] w-[520px] rounded-full bg-indigo-500/16 blur-3xl" />
+
+        <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(to_right,rgba(255,255,255,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.09)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_0%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.72)_100%)]" />
+      </div>
+
+      <main className="mx-auto max-w-4xl px-4 pb-14 pt-12 sm:pt-14">
+        {/* HERO */}
+        <section className="text-center">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 backdrop-blur">
+            <Sparkles className="h-4 w-4 text-fuchsia-300" />
+            <span>AI audio editing + learning platform</span>
+          </div>
+
+          <h1 className="mt-5 text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
+            MUsic from{" "}
+            <span className="relative inline-block">
+              <span className="relative z-10 bg-gradient-to-r from-fuchsia-300 via-indigo-200 to-cyan-200 bg-clip-text text-transparent">
+                future
+              </span>
+              <span className="absolute -inset-x-2 -inset-y-1 -z-0 rounded-2xl bg-white/5" />
+            </span>
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-2xl text-pretty text-base text-white/70 sm:text-lg">
+            Choose your workflow for each stage: black-box speed, explainable learning, or advanced AI
+            pipelines.
+          </p>
+
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Button
+              size="lg"
+              className="rounded-2xl bg-gradient-to-r from-fuchsia-500 via-indigo-500 to-cyan-400 text-white shadow-lg shadow-fuchsia-500/10 hover:opacity-95"
+            >
+              Try the demo <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="rounded-2xl bg-white/7 text-white/85 hover:bg-white/10"
+            >
+              See how it works
+            </Button>
+          </div>
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <MiniPoint
+              icon={<BadgeCheck className="h-4 w-4 text-cyan-200" />}
+              text="Explainable options"
+            />
+            <MiniPoint icon={<Layers className="h-4 w-4 text-indigo-200" />} text="Multi-model pipelines" />
+            <MiniPoint icon={<Compass className="h-4 w-4 text-fuchsia-200" />} text="Learn as you edit" />
+          </div>
+
+          <div className="mx-auto mt-10 max-w-3xl">
+            <WaveDivider />
+          </div>
+        </section>
+
+        {/* STAGE SECTIONS */}
+        <div className="mt-10 space-y-8">
+          {sections.map((s) => (
+            <StageCarousel key={s.id} section={s} />
+          ))}
+        </div>
+
+        {/* WAITLIST */}
+        <section className="mt-10">
+          <Card className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur">
+            <CardContent className="p-6 sm:p-8">
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Join the waitlist</h2>
+                  <p className="mt-2 text-sm text-white/70">Get beta access and updates. No spam.</p>
+                </div>
+
+                <form onSubmit={onSubmit} className="w-full max-w-md">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Input
+                      className="h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/40"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      aria-label="Email"
+                    />
+                    <Button
+                      className="h-11 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-indigo-500 to-cyan-400 text-white shadow-lg shadow-indigo-500/10 hover:opacity-95"
+                      type="submit"
+                      disabled={submitted}
+                    >
+                      {submitted ? "Added" : "Notify me"}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-white/55">Founding member perks included.</p>
+                </form>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <Separator className="my-10 bg-white/10" />
+
+        <footer className="flex flex-col gap-2 text-center text-xs text-white/55">
+          <div>© {year} MUsic from future</div>
+          <div className="inline-flex items-center justify-center gap-2">
+            <AudioLines className="h-4 w-4 text-white/70" />
+            <span>Web-first audio workflows</span>
+          </div>
+        </footer>
+
+        {/**
+         * Manual test checklist:
+         * 1) Desktop: click+drag each stage row left/right (should scroll).
+         * 2) Mobile: swipe each stage row left/right (should scroll).
+         * 3) Snap: releasing should align to a card edge.
+         */}
+      </main>
+    </div>
+  );
+}
+
+function StageCarousel({ section }: { section: StageSection }) {
+  const carousel = useDragScroll<HTMLDivElement>();
+
+  return (
+    <section id={section.id}>
+      <Card className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{section.title}</h2>
+              <p className="mt-2 text-sm text-white/70">{section.subtitle}</p>
+            </div>
+            <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60 sm:inline-flex">
+              <span>Swipe</span>
+              <span aria-hidden>→</span>
+            </div>
+          </div>
+
+          <div
+            ref={carousel.ref}
+            {...carousel.handlers}
+            className={cn(
+              "mt-6 -mx-2 flex gap-3 overflow-x-auto px-2 pb-2",
+              "snap-x snap-mandatory scroll-smooth overscroll-x-contain",
+              "select-none touch-pan-x cursor-grab active:cursor-grabbing",
+              "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            )}
+          >
+            {section.cards.map((c) => (
+              <div key={c.title} className="min-w-[300px] snap-start">
+                <MixCard icon={c.icon} title={c.title} desc={c.desc} hint={c.hint} tone={c.tone} />
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-3 text-xs text-white/55">Desktop: click and drag the row.</p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function Header() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-fuchsia-500/20 via-indigo-500/10 to-cyan-400/20">
+            <AudioLines className="h-5 w-5 text-white/90" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">MUsic from future</div>
+            <div className="text-xs text-white/55">AI audio tools + learning</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" className="rounded-2xl text-white/80 hover:bg-white/10 hover:text-white">
+            Sign in
+          </Button>
+          <Button className="rounded-2xl bg-white/10 text-white hover:bg-white/15">Get early access</Button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function MiniPoint({
+  icon,
+  text,
+}: {
+  icon: React.ReactNode;
+  text: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur">
+      <div className="flex items-center justify-center gap-2 text-white/70">
+        {icon}
+        <span>{text}</span>
+      </div>
+    </div>
+  );
+}
+
+function MixCard({
+  icon,
+  title,
+  desc,
+  hint,
+  tone,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  hint: string;
+  tone: Tone;
+}) {
+  const toneStyles =
+    tone === "fuchsia"
+      ? {
+          glow: "bg-fuchsia-500/20",
+          chip: "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-100",
+          line: "from-fuchsia-500/0 via-fuchsia-400/60 to-fuchsia-500/0",
+          iconBg: "from-fuchsia-500/20 to-fuchsia-500/5",
+        }
+      : tone === "cyan"
+        ? {
+            glow: "bg-cyan-400/18",
+            chip: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
+            line: "from-cyan-500/0 via-cyan-300/60 to-cyan-500/0",
+            iconBg: "from-cyan-400/18 to-cyan-400/5",
+          }
+        : {
+            glow: "bg-indigo-500/18",
+            chip: "border-indigo-400/25 bg-indigo-500/10 text-indigo-100",
+            line: "from-indigo-500/0 via-indigo-300/60 to-indigo-500/0",
+            iconBg: "from-indigo-500/18 to-indigo-500/5",
+          };
+
+  return (
+    <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/30 p-5 backdrop-blur transition-transform duration-200 hover:-translate-y-0.5">
+      <div className={cn("pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl", toneStyles.glow)} />
+      <div className={cn("pointer-events-none absolute bottom-0 left-0 h-[2px] w-full bg-gradient-to-r opacity-80", toneStyles.line)} />
+
+      <div className="flex items-start justify-between gap-4">
+        <div
+          className={cn(
+            "grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br",
+            toneStyles.iconBg
+          )}
+        >
+          <span className="text-white/90">{icon}</span>
+        </div>
+
+        <div className={cn("rounded-full border px-3 py-1 text-xs", toneStyles.chip)}>AI-guided</div>
+      </div>
+
+      <div className="mt-4">
+        <div className="text-base font-semibold tracking-tight">{title}</div>
+        <div className="mt-1 text-sm text-white/70">{desc}</div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+        <div className="text-xs text-white/55">Quick insight</div>
+        <div className="mt-1 text-sm text-white/85">{hint}</div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-xs text-white/55">
+        <span className={cn("inline-flex h-2 w-2 rounded-full", toneStyles.glow)} />
+        <span>Editable suggestions</span>
+      </div>
+    </div>
+  );
+}
+
+function WaveDivider() {
+  return (
+    <div className="relative">
+      <div className="absolute inset-x-0 -top-2 h-6 bg-gradient-to-b from-transparent to-black/30" />
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="h-10 w-full opacity-70" aria-hidden>
+        <path
+          d="M0,64 C120,88 240,40 360,64 C480,88 600,40 720,64 C840,88 960,40 1080,64 C1140,76 1170,80 1200,76 L1200,120 L0,120 Z"
+          fill="currentColor"
+          className="text-white/10"
+        />
+      </svg>
+    </div>
+  );
+}
