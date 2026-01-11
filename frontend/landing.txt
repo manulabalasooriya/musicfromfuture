@@ -1,14 +1,18 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AudioLines,
   ArrowRight,
   BadgeCheck,
+  CheckCircle2,
   Compass,
   Gauge,
   Layers,
+  Lock,
   SlidersHorizontal,
   Sparkles,
+  Star,
   Waves,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
  *
  * Dark theme + colorful accents.
  * Sections per mixing stage, each with swipe/drag cards.
+ * Adds: Stars + Daily MCQ challenge (earn stars) + access gates by star count.
  */
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -76,6 +81,7 @@ type StageCard = {
   hint: string;
   tone: Tone;
   icon: React.ReactNode;
+  requiredStars: number;
 };
 
 type StageSection = {
@@ -85,30 +91,157 @@ type StageSection = {
   cards: StageCard[];
 };
 
+type Mcq = {
+  q: string;
+  options: string[];
+  answerIndex: number;
+  why: string;
+};
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function isUnlocked(stars: number, requiredStars: number) {
+  return stars >= requiredStars;
+}
+
+function todayKey() {
+  // Uses the user's browser timezone.
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+const DAILY_QUIZ: Mcq[] = [
+  {
+    q: "In gain staging, what’s a common reason to leave headroom (e.g., peaks around -6 dBFS)?",
+    options: [
+      "To make the track quieter for streaming",
+      "To reduce the chance of clipping and leave room for processing",
+      "To increase noise floor for warmth",
+      "To avoid stereo imaging changes",
+    ],
+    answerIndex: 1,
+    why: "Headroom helps prevent clipping and gives plugins room to work without distortion.",
+  },
+  {
+    q: "What’s the main goal of panning in a mix?",
+    options: [
+      "Increase loudness",
+      "Control pitch",
+      "Create separation and width",
+      "Remove reverb",
+    ],
+    answerIndex: 2,
+    why: "Panning places elements across left-right space to reduce masking and add width.",
+  },
+  {
+    q: "A typical EQ move to reduce muddiness is often in which region?",
+    options: ["20–60 Hz", "200–500 Hz", "2–5 kHz", "10–18 kHz"],
+    answerIndex: 1,
+    why: "Muddiness often builds up in the low-mids around ~200–500 Hz.",
+  },
+  {
+    q: "What does compression primarily control?",
+    options: ["Stereo width", "Dynamics", "Tempo", "Phase inversion"],
+    answerIndex: 1,
+    why: "Compression reduces dynamic range by turning down loud parts based on threshold/ratio.",
+  },
+  {
+    q: "Why check mono compatibility when panning?",
+    options: [
+      "Mono makes the mix louder",
+      "Panning changes sample rate",
+      "Some systems sum to mono and phase issues can cause cancellations",
+      "Mono disables EQ",
+    ],
+    answerIndex: 2,
+    why: "Summing to mono can reveal phase cancellations or balance issues.",
+  },
+];
+
 export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const year = useMemo(() => new Date().getFullYear(), []);
 
-  function onSubmit(e: React.FormEvent) {
+  // Stars + daily quiz state (local demo)
+  const [stars, setStars] = useState<number>(0);
+  const [quizAnswers, setQuizAnswers] = useState<number[]>(() => Array(DAILY_QUIZ.length).fill(-1));
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizResult, setQuizResult] = useState<{ correct: number; earned: number } | null>(null);
+
+  const storageStarsKey = "mf_stars";
+  const storageQuizKey = `mf_daily_quiz_${todayKey()}`;
+
+  useEffect(() => {
+    // Load saved stars
+    const raw = localStorage.getItem(storageStarsKey);
+    const n = raw ? Number(raw) : 0;
+    if (!Number.isNaN(n)) setStars(clamp(n, 0, 99999));
+
+    // Load quiz completion
+    const quizRaw = localStorage.getItem(storageQuizKey);
+    if (quizRaw) {
+      try {
+        const parsed = JSON.parse(quizRaw) as {
+          answers: number[];
+          correct: number;
+          earned: number;
+        };
+        setQuizAnswers(Array.isArray(parsed.answers) ? parsed.answers : quizAnswers);
+        setQuizSubmitted(true);
+        setQuizResult({ correct: parsed.correct, earned: parsed.earned });
+      } catch {
+        // ignore
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(storageStarsKey, String(stars));
+  }, [stars]);
+
+  function onSubmitWaitlist(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
     // TODO: Wire to your backend (POST /waitlist)
     setSubmitted(true);
   }
 
+  function submitQuiz() {
+    if (quizSubmitted) return;
+
+    const correct = quizAnswers.reduce((acc, ans, i) => acc + (ans === DAILY_QUIZ[i].answerIndex ? 1 : 0), 0);
+    const earned = correct; // 1 star per correct answer (default)
+
+    setStars((s) => s + earned);
+    setQuizSubmitted(true);
+    setQuizResult({ correct, earned });
+
+    localStorage.setItem(
+      storageQuizKey,
+      JSON.stringify({ answers: quizAnswers, correct, earned })
+    );
+  }
+
   const sections: StageSection[] = [
     {
       id: "gain-staging",
       title: "Gain Staging",
-      subtitle: "From black-box automation to fully explainable, multi-model pipelines.",
+      subtitle: "Unlock more control and better quality as you earn stars.",
       cards: [
         {
           title: "Blackbox Gain Stage",
           desc: "Auto gain-stage your mix — without revealing the steps.",
-          hint: "Fast, minimal UI — just results",
+          hint: "Fastest: one-click results",
           tone: "fuchsia",
           icon: <Gauge className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Role-based Gain Stager",
@@ -116,34 +249,38 @@ export default function LandingPage() {
           hint: "Shows what changed + why",
           tone: "cyan",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 10,
         },
         {
           title: "AI Gain Stager — 1 Model",
           desc: "A single model that predicts clean levels per track.",
-          hint: "Simple + consistent baseline",
+          hint: "Consistent baseline",
           tone: "indigo",
           icon: <Sparkles className="h-5 w-5" />,
+          requiredStars: 25,
         },
         {
           title: "AI Gain Stager — 2 Models",
-          desc: "Two-model pipeline for smarter context + refinement.",
-          hint: "Better translation across genres",
+          desc: "Two-model pipeline for context + refinement.",
+          hint: "Better genre translation",
           tone: "cyan",
           icon: <Layers className="h-5 w-5" />,
+          requiredStars: 45,
         },
         {
           title: "AI Gain Stager — 3 Models",
-          desc: "Multi-stage pipeline: analyze → decide → refine.",
-          hint: "Most control + best quality",
+          desc: "Analyze → decide → refine, for best quality.",
+          hint: "Most control",
           tone: "fuchsia",
           icon: <Compass className="h-5 w-5" />,
+          requiredStars: 70,
         },
       ],
     },
     {
       id: "panning",
       title: "Stereo Panning",
-      subtitle: "Classic panning, explainability, and spatial pipelines with ambisonics.",
+      subtitle: "From black-box panning to advanced spatial pipelines.",
       cards: [
         {
           title: "Blackbox Panning",
@@ -151,13 +288,15 @@ export default function LandingPage() {
           hint: "Instant width + separation",
           tone: "cyan",
           icon: <SlidersHorizontal className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Explainable Panning",
-          desc: "Shows the panning rules and decisions for each element.",
+          desc: "Shows panning rules and decisions per element.",
           hint: "Learn placement strategies",
           tone: "indigo",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 15,
         },
         {
           title: "Panning with Ambisonics",
@@ -165,13 +304,15 @@ export default function LandingPage() {
           hint: "Better depth + motion",
           tone: "fuchsia",
           icon: <Waves className="h-5 w-5" />,
+          requiredStars: 35,
         },
         {
           title: "Ambisonics + Diffusion",
-          desc: "Diffuse spatial energy for a smoother, wider soundstage.",
+          desc: "Diffuse spatial energy for smoother width.",
           hint: "More natural space",
           tone: "cyan",
           icon: <Sparkles className="h-5 w-5" />,
+          requiredStars: 55,
         },
         {
           title: "Ambisonics + Diffusion + Binaural",
@@ -179,36 +320,40 @@ export default function LandingPage() {
           hint: "Headphone-ready 3D",
           tone: "indigo",
           icon: <Compass className="h-5 w-5" />,
+          requiredStars: 85,
         },
       ],
     },
 
-    // Templates for the remaining stages (replace card titles/desc with your exact product variants)
+    // Templates for remaining stages (edit these titles/thresholds to match your exact product variants)
     {
       id: "equalization",
       title: "Equalization",
-      subtitle: "Shape tone with clear goals — from black-box to explainable pipelines.",
+      subtitle: "Unlock black-box speed, explainable learning, and AI pipelines.",
       cards: [
         {
           title: "Blackbox EQ",
           desc: "Automatic EQ that just sounds better.",
-          hint: "No knobs, no explanations",
+          hint: "No knobs, just results",
           tone: "indigo",
           icon: <AudioLines className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Explainable EQ",
           desc: "Shows cuts/boosts and explains what they target.",
-          hint: "Resonances • mud • harshness",
+          hint: "Mud • harshness • resonance",
           tone: "cyan",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 20,
         },
         {
           title: "AI EQ Pipelines",
-          desc: "Model-driven EQ suggestions with progressive refinement.",
-          hint: "1 model → 2 models → 3 models",
+          desc: "Progressive EQ refinement with model guidance.",
+          hint: "1→2→3 models",
           tone: "fuchsia",
           icon: <Layers className="h-5 w-5" />,
+          requiredStars: 60,
         },
       ],
     },
@@ -219,31 +364,34 @@ export default function LandingPage() {
       cards: [
         {
           title: "Blackbox Compression",
-          desc: "Automatic dynamics control without parameter exposure.",
+          desc: "Automatic dynamics control without exposing parameters.",
           hint: "Quick, musical results",
           tone: "cyan",
           icon: <Waves className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Explainable Compression",
-          desc: "Explains ratio/threshold/attack/release decisions.",
-          hint: "Shows gain reduction + intent",
+          desc: "Explains threshold/ratio/attack/release decisions.",
+          hint: "Shows gain reduction",
           tone: "indigo",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 25,
         },
         {
           title: "AI Compression Pipelines",
-          desc: "Multi-model dynamics that adapts to content and genre.",
+          desc: "Multi-stage dynamics that adapts to content.",
           hint: "Transient-aware refinement",
           tone: "fuchsia",
           icon: <Layers className="h-5 w-5" />,
+          requiredStars: 65,
         },
       ],
     },
     {
       id: "reverb",
       title: "Reverb",
-      subtitle: "Depth, space, and realism — from presets to spatial pipelines.",
+      subtitle: "Depth, space, and realism — from presets to AI refinement.",
       cards: [
         {
           title: "Blackbox Reverb",
@@ -251,13 +399,15 @@ export default function LandingPage() {
           hint: "Clean depth, low clutter",
           tone: "fuchsia",
           icon: <Sparkles className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Explainable Reverb",
           desc: "Shows room choice, pre-delay, decay, and mix level.",
-          hint: "Teaches placement in space",
+          hint: "Teaches placement",
           tone: "cyan",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 25,
         },
         {
           title: "AI Reverb Pipelines",
@@ -265,6 +415,7 @@ export default function LandingPage() {
           hint: "Context-aware ambience",
           tone: "indigo",
           icon: <Layers className="h-5 w-5" />,
+          requiredStars: 65,
         },
       ],
     },
@@ -279,6 +430,7 @@ export default function LandingPage() {
           hint: "Instant tightness",
           tone: "indigo",
           icon: <Compass className="h-5 w-5" />,
+          requiredStars: 0,
         },
         {
           title: "Explainable Sync",
@@ -286,21 +438,35 @@ export default function LandingPage() {
           hint: "Transient + beat maps",
           tone: "cyan",
           icon: <BadgeCheck className="h-5 w-5" />,
+          requiredStars: 20,
         },
         {
           title: "AI Sync Pipelines",
           desc: "Multi-stage alignment that preserves feel.",
-          hint: "Human-like groove retention",
+          hint: "Groove retention",
           tone: "fuchsia",
           icon: <Layers className="h-5 w-5" />,
+          requiredStars: 55,
         },
       ],
     },
   ];
 
+  // Tiny sanity tests (won't fail your build; shows in console if wrong)
+  useEffect(() => {
+    console.assert(isUnlocked(10, 10) === true, "unlock test failed");
+    console.assert(isUnlocked(9, 10) === false, "lock test failed");
+  }, []);
+
+  const unlockedCount = sections.reduce(
+    (acc, s) => acc + s.cards.reduce((a, c) => a + (isUnlocked(stars, c.requiredStars) ? 1 : 0), 0),
+    0
+  );
+  const totalCards = sections.reduce((acc, s) => acc + s.cards.length, 0);
+
   return (
     <div className="dark min-h-screen bg-background text-foreground">
-      <Header />
+      <Header stars={stars} />
 
       {/* Background (dark + colorful accents) */}
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -319,7 +485,7 @@ export default function LandingPage() {
         <section className="text-center">
           <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 backdrop-blur">
             <Sparkles className="h-4 w-4 text-fuchsia-300" />
-            <span>AI audio editing + learning platform</span>
+            <span>AI audio tools + learning platform</span>
           </div>
 
           <h1 className="mt-5 text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
@@ -333,8 +499,8 @@ export default function LandingPage() {
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-base text-white/70 sm:text-lg">
-            Choose your workflow for each stage: black-box speed, explainable learning, or advanced AI
-            pipelines.
+            Earn stars by completing daily MCQs. Unlock black-box tools, explainable modes, and advanced
+            multi-model pipelines across every mixing stage.
           </p>
 
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
@@ -349,17 +515,14 @@ export default function LandingPage() {
               variant="secondary"
               className="rounded-2xl bg-white/7 text-white/85 hover:bg-white/10"
             >
-              See how it works
+              Do today’s MCQs
             </Button>
           </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <MiniPoint
-              icon={<BadgeCheck className="h-4 w-4 text-cyan-200" />}
-              text="Explainable options"
-            />
-            <MiniPoint icon={<Layers className="h-4 w-4 text-indigo-200" />} text="Multi-model pipelines" />
-            <MiniPoint icon={<Compass className="h-4 w-4 text-fuchsia-200" />} text="Learn as you edit" />
+            <MiniPoint icon={<Star className="h-4 w-4 text-yellow-200" />} text={`${stars} stars earned`} />
+            <MiniPoint icon={<BadgeCheck className="h-4 w-4 text-cyan-200" />} text={`${unlockedCount}/${totalCards} unlocked`} />
+            <MiniPoint icon={<Compass className="h-4 w-4 text-fuchsia-200" />} text="Learn by doing" />
           </div>
 
           <div className="mx-auto mt-10 max-w-3xl">
@@ -367,10 +530,136 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* DAILY MCQ */}
+        <section className="mt-10" id="daily-mcq">
+          <Card className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur">
+            <CardContent className="p-6 sm:p-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Daily MCQ Challenge</h2>
+                  <p className="mt-2 text-sm text-white/70">
+                    Answer today’s questions to earn stars. Stars unlock advanced features.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm">
+                  <div className="flex items-center gap-2 text-white/80">
+                    <Star className="h-4 w-4 text-yellow-200" />
+                    <span className="font-semibold">{stars}</span>
+                    <span className="text-white/55">total stars</span>
+                  </div>
+                  <div className="mt-1 text-xs text-white/55">Today: {todayKey()}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                {DAILY_QUIZ.map((item, idx) => {
+                  const chosen = quizAnswers[idx];
+                  const correct = item.answerIndex;
+                  const isCorrect = chosen === correct;
+
+                  return (
+                    <div key={item.q} className="rounded-3xl border border-white/10 bg-black/30 p-5">
+                      <div className="text-sm font-semibold">Q{idx + 1}. {item.q}</div>
+                      <div className="mt-3 grid gap-2">
+                        {item.options.map((opt, oi) => {
+                          const selected = chosen === oi;
+                          const showEval = quizSubmitted;
+                          const right = showEval && oi === correct;
+                          const wrong = showEval && selected && oi !== correct;
+
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              disabled={quizSubmitted}
+                              onClick={() =>
+                                setQuizAnswers((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = oi;
+                                  return next;
+                                })
+                              }
+                              className={cn(
+                                "w-full rounded-2xl border px-4 py-3 text-left text-sm transition",
+                                "border-white/10 bg-white/5 hover:bg-white/8",
+                                selected && "bg-white/10",
+                                right && "border-emerald-400/30 bg-emerald-400/10",
+                                wrong && "border-rose-400/30 bg-rose-400/10"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="text-white/80">{opt}</span>
+                                {quizSubmitted && selected && (
+                                  isCorrect ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4 text-rose-200" />
+                                  )
+                                )}
+                                {quizSubmitted && right && !selected && (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {quizSubmitted && (
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70">
+                          <span className="font-semibold">Why:</span> {item.why}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-white/70">
+                  {quizSubmitted ? (
+                    <span>
+                      Completed today’s quiz. You earned{" "}
+                      <span className="font-semibold text-white">{quizResult?.earned ?? 0}</span> stars.
+                    </span>
+                  ) : (
+                    <span>Earn 1 star per correct answer (default).</span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="rounded-2xl bg-white/7 text-white/85 hover:bg-white/10"
+                    onClick={() => {
+                      // Demo helper: reset today’s quiz
+                      localStorage.removeItem(storageQuizKey);
+                      setQuizAnswers(Array(DAILY_QUIZ.length).fill(-1));
+                      setQuizSubmitted(false);
+                      setQuizResult(null);
+                    }}
+                  >
+                    Reset (demo)
+                  </Button>
+                  <Button
+                    type="button"
+                    className="rounded-2xl bg-gradient-to-r from-fuchsia-500 via-indigo-500 to-cyan-400 text-white shadow-lg shadow-indigo-500/10 hover:opacity-95"
+                    disabled={quizSubmitted || quizAnswers.some((a) => a < 0)}
+                    onClick={submitQuiz}
+                  >
+                    {quizSubmitted ? "Completed" : "Submit & Earn Stars"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* STAGE SECTIONS */}
         <div className="mt-10 space-y-8">
           {sections.map((s) => (
-            <StageCarousel key={s.id} section={s} />
+            <StageCarousel key={s.id} section={s} stars={stars} />
           ))}
         </div>
 
@@ -384,7 +673,7 @@ export default function LandingPage() {
                   <p className="mt-2 text-sm text-white/70">Get beta access and updates. No spam.</p>
                 </div>
 
-                <form onSubmit={onSubmit} className="w-full max-w-md">
+                <form onSubmit={onSubmitWaitlist} className="w-full max-w-md">
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Input
                       className="h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/40"
@@ -421,16 +710,23 @@ export default function LandingPage() {
 
         {/**
          * Manual test checklist:
-         * 1) Desktop: click+drag each stage row left/right (should scroll).
-         * 2) Mobile: swipe each stage row left/right (should scroll).
-         * 3) Snap: releasing should align to a card edge.
+         * 1) Answer the MCQs and submit: stars should increase.
+         * 2) Cards with required stars should show as Locked when stars are low.
+         * 3) After earning stars, cards should flip to Unlocked state.
+         * 4) Each stage carousel supports swipe (touch) and drag (mouse).
          */}
       </main>
     </div>
   );
 }
 
-function StageCarousel({ section }: { section: StageSection }) {
+function StageCarousel({
+  section,
+  stars,
+}: {
+  section: StageSection;
+  stars: number;
+}) {
   const carousel = useDragScroll<HTMLDivElement>();
 
   return (
@@ -458,11 +754,23 @@ function StageCarousel({ section }: { section: StageSection }) {
               "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             )}
           >
-            {section.cards.map((c) => (
-              <div key={c.title} className="min-w-[300px] snap-start">
-                <MixCard icon={c.icon} title={c.title} desc={c.desc} hint={c.hint} tone={c.tone} />
-              </div>
-            ))}
+            {section.cards.map((c) => {
+              const unlocked = isUnlocked(stars, c.requiredStars);
+              return (
+                <div key={c.title} className="min-w-[320px] snap-start">
+                  <MixCard
+                    icon={c.icon}
+                    title={c.title}
+                    desc={c.desc}
+                    hint={c.hint}
+                    tone={c.tone}
+                    requiredStars={c.requiredStars}
+                    unlocked={unlocked}
+                    currentStars={stars}
+                  />
+                </div>
+              );
+            })}
           </div>
 
           <p className="mt-3 text-xs text-white/55">Desktop: click and drag the row.</p>
@@ -472,7 +780,7 @@ function StageCarousel({ section }: { section: StageSection }) {
   );
 }
 
-function Header() {
+function Header({ stars }: { stars: number }) {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -487,6 +795,11 @@ function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 sm:inline-flex">
+            <Star className="h-4 w-4 text-yellow-200" />
+            <span className="font-semibold">{stars}</span>
+            <span className="text-white/55">stars</span>
+          </div>
           <Button variant="ghost" className="rounded-2xl text-white/80 hover:bg-white/10 hover:text-white">
             Sign in
           </Button>
@@ -520,12 +833,18 @@ function MixCard({
   desc,
   hint,
   tone,
+  requiredStars,
+  unlocked,
+  currentStars,
 }: {
   icon: React.ReactNode;
   title: string;
   desc: string;
   hint: string;
   tone: Tone;
+  requiredStars: number;
+  unlocked: boolean;
+  currentStars: number;
 }) {
   const toneStyles =
     tone === "fuchsia"
@@ -549,8 +868,28 @@ function MixCard({
             iconBg: "from-indigo-500/18 to-indigo-500/5",
           };
 
+  const statusChip = unlocked
+    ? {
+        text: "Unlocked",
+        icon: <CheckCircle2 className="h-4 w-4 text-emerald-200" />,
+        className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+      }
+    : {
+        text: `Locked · ${requiredStars}★`,
+        icon: <Lock className="h-4 w-4 text-white/70" />,
+        className: "border-white/10 bg-white/5 text-white/70",
+      };
+
+  const missing = Math.max(0, requiredStars - currentStars);
+
   return (
-    <div className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/30 p-5 backdrop-blur transition-transform duration-200 hover:-translate-y-0.5">
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-3xl border border-white/10 bg-black/30 p-5 backdrop-blur",
+        "transition-transform duration-200 hover:-translate-y-0.5",
+        !unlocked && "opacity-85"
+      )}
+    >
       <div className={cn("pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl", toneStyles.glow)} />
       <div className={cn("pointer-events-none absolute bottom-0 left-0 h-[2px] w-full bg-gradient-to-r opacity-80", toneStyles.line)} />
 
@@ -564,7 +903,10 @@ function MixCard({
           <span className="text-white/90">{icon}</span>
         </div>
 
-        <div className={cn("rounded-full border px-3 py-1 text-xs", toneStyles.chip)}>AI-guided</div>
+        <div className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs", statusChip.className)}>
+          {statusChip.icon}
+          <span>{statusChip.text}</span>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -577,9 +919,15 @@ function MixCard({
         <div className="mt-1 text-sm text-white/85">{hint}</div>
       </div>
 
+      {!unlocked && (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/70">
+          Earn <span className="font-semibold text-white">{missing}</span> more stars to unlock.
+        </div>
+      )}
+
       <div className="mt-4 flex items-center gap-2 text-xs text-white/55">
         <span className={cn("inline-flex h-2 w-2 rounded-full", toneStyles.glow)} />
-        <span>Editable suggestions</span>
+        <span>{unlocked ? "Available now" : "Unlock via daily MCQs"}</span>
       </div>
     </div>
   );
